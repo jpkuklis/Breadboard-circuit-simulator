@@ -1,0 +1,2604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Breadboard Simulator & Educational Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #090d16;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #sidebar {
+            width: 360px;
+            background-color: #0f172a;
+            border-right: 1px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background-color: #060911;
+            background-image: 
+                radial-gradient(#1e293b 1.2px, transparent 1.2px),
+                radial-gradient(#1e293b 1.2px, transparent 1.2px);
+            background-size: 28px 28px;
+            background-position: 0 0, 14px 14px;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+            border-radius: 14px;
+            cursor: crosshair;
+        }
+
+        .tool-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 8px 11px;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-radius: 8px;
+        }
+
+        .tool-btn:hover {
+            background-color: #1e293b;
+            color: #ffffff;
+            border-color: #475569;
+            transform: translateY(-1px);
+        }
+
+        .tool-btn.active {
+            background-color: #4338ca;
+            color: #ffffff;
+            border-color: #6366f1;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .tool-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        /* Tool specific styling */
+        .icon-wire-red { background: #ef4444; color: white; }
+        .icon-wire-black { background: #0f172a; border: 1px solid #475569; color: white; }
+        .icon-wire-blue { background: #3b82f6; color: white; }
+        .icon-wire-green { background: #10b981; color: white; }
+        
+        .icon-resistor { background: #d97706; color: white; }
+        .icon-pot { background: #0284c7; color: white; }
+        .icon-cap { background: #0891b2; color: white; }
+        .icon-diode { background: #334155; border: 1px solid #94a3b8; color: white; }
+        .icon-led-red { background: #ef4444; border-radius: 50%; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+        .icon-led-green { background: #22c55e; border-radius: 50%; box-shadow: 0 0 8px rgba(34, 197, 94, 0.6); }
+        .icon-led-blue { background: #3b82f6; border-radius: 50%; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); }
+        .icon-led-yellow { background: #eab308; border-radius: 50%; box-shadow: 0 0 8px rgba(234, 179, 8, 0.6); }
+        .icon-battery { background: #1e293b; border-top: 3px solid #f59e0b; color: #f59e0b; }
+        .icon-ic { background: #0f172a; border: 1px solid #475569; color: #38bdf8; font-family: monospace; }
+        .icon-buzzer { background: #475569; border-radius: 50%; color: white; }
+        .icon-multimeter { background: #f59e0b; color: black; }
+
+        .scrollbar-custom::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-custom::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        .scrollbar-custom::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 3px;
+        }
+        .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+
+        /* Glass HUD Overlays */
+        .hud-card {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid #334155;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+            border-radius: 12px;
+        }
+
+        /* Context Menu */
+        #context-menu {
+            position: absolute;
+            z-index: 100;
+            width: 220px;
+            background: rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(12px);
+            border: 1px solid #475569;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.8);
+            border-radius: 10px;
+            padding: 5px 0;
+            display: none;
+        }
+
+        .context-item {
+            padding: 8px 14px;
+            font-size: 0.8rem;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.12s ease, color 0.12s ease;
+        }
+
+        .context-item:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+        .context-divider {
+            height: 1px;
+            background: #334155;
+            margin: 4px 0;
+        }
+
+        input[type=range] {
+            accent-color: #6366f1;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <!-- Sidebar Header -->
+        <div class="p-4 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between">
+            <div>
+                <h1 class="text-base font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    CircuitLab Pro Studio
+                </h1>
+                <p class="text-xs text-slate-400 mt-0.5">Virtual Breadboard & Physics Simulator</p>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded-full">v4.0</span>
+        </div>
+        
+        <!-- Sidebar Content -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-5 scrollbar-custom">
+            
+            <!-- Educational & Common Mistake Presets -->
+            <div>
+                <!-- Collapsible Common Student Mistakes Header -->
+                <div id="header-mistakes" class="flex justify-between items-center mb-2 cursor-pointer select-none group p-1.5 rounded hover:bg-slate-800/60 transition">
+                    <h2 class="text-xs font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg id="arrow-mistakes" class="w-3.5 h-3.5 transform transition-transform duration-200 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <span>💥 Common Student Mistakes</span>
+                    </h2>
+                    <span class="text-[10px] text-rose-300 font-mono bg-rose-950/80 border border-rose-800/80 px-1.5 py-0.5 rounded">10 Presets</span>
+                </div>
+                <div id="container-mistakes" class="grid grid-cols-1 gap-1.5 mb-4">
+                    <button id="preset-mistake-no-res" class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-no-res">
+                        <span>💥 1. Fried LED (No Resistor!)</span>
+                        <span class="text-[10px] text-rose-400 font-mono">Over-Current</span>
+                    </button>
+                    <button id="preset-mistake-low-res" class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-low-res">
+                        <span>💥 2. Overcurrent (22Ω Too Low)</span>
+                        <span class="text-[10px] text-rose-400 font-mono">318mA Burn</span>
+                    </button>
+                    <button id="preset-mistake-cap-reverse" class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-cap-reverse">
+                        <span>💥 3. Exploded Cap (Reversed +/-)</span>
+                        <span class="text-[10px] text-amber-400 font-mono">Polarity</span>
+                    </button>
+                    <button id="preset-mistake-short" class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-short">
+                        <span>💥 4. Direct Short Circuit</span>
+                        <span class="text-[10px] text-red-400 font-mono">VCC to GND</span>
+                    </button>
+                    <button id="preset-mistake-diode-reverse" class="preset-btn py-2 px-2.5 bg-amber-950/40 hover:bg-amber-900/60 text-xs text-amber-200 rounded-lg border border-amber-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-diode-reverse">
+                        <span>⚠️ 5. Reversed Diode (No Flow)</span>
+                        <span class="text-[10px] text-amber-400 font-mono">Reverse Bias</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-floating-transistor">
+                        <span>⚠️ 6. Floating Transistor Base</span>
+                        <span class="text-[10px] text-amber-300 font-mono">Unbiased</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-amber-950/40 hover:bg-amber-900/60 text-xs text-amber-200 rounded-lg border border-amber-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-led-reverse">
+                        <span>⚠️ 7. Reverse-Biased LED</span>
+                        <span class="text-[10px] text-amber-400 font-mono">Anode/Cathode</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-floating-reset">
+                        <span>⚠️ 8. Floating 555 Reset Pin</span>
+                        <span class="text-[10px] text-rose-300 font-mono">IC Disabled</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-parallel-led">
+                        <span>💥 9. Parallel LEDs (Current Hog)</span>
+                        <span class="text-[10px] text-amber-300 font-mono">No Ballast</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-xs text-rose-200 rounded-lg border border-rose-800/60 transition text-left flex items-center justify-between" data-preset="preset-mistake-pot-short">
+                        <span>💥 10. Potentiometer Rail Short</span>
+                        <span class="text-[10px] text-red-400 font-mono">0Ω Rail Short</span>
+                    </button>
+                </div>
+
+                <!-- Collapsible Working Educational Circuits Header -->
+                <div id="header-working" class="flex justify-between items-center mb-2 cursor-pointer select-none group p-1.5 rounded hover:bg-slate-800/60 transition">
+                    <h2 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg id="arrow-working" class="w-3.5 h-3.5 transform transition-transform duration-200 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <span>Working Educational Circuits</span>
+                    </h2>
+                    <span class="text-[10px] text-emerald-300 font-mono bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded">15 Presets</span>
+                </div>
+                <div id="container-working" class="grid grid-cols-1 gap-1.5">
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-led">
+                        <span>💡 1. Protected LED (1kΩ Resistor)</span>
+                        <span class="text-[10px] text-slate-400 font-mono">Safe</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-divider">
+                        <span>📏 2. Voltage Divider Circuit</span>
+                        <span class="text-[10px] text-amber-400 font-mono">Multimeter</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-pot">
+                        <span>🎛️ 3. Potentiometer Light Dimmer</span>
+                        <span class="text-[10px] text-indigo-300 font-mono">Variable</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-transistor">
+                        <span>⚡ 4. Transistor Switch & Buzzer</span>
+                        <span class="text-[10px] text-emerald-400 font-mono">2N2222</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-dark-alarm">
+                        <span>🌙 5. Light-Sensing (LDR) Night Sensor</span>
+                        <span class="text-[10px] text-cyan-400 font-mono">Sensor</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-555">
+                        <span>⏱️ 6. 555 Timer Pulse Oscillator</span>
+                        <span class="text-[10px] text-indigo-400 font-mono">IC Chip</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-rc">
+                        <span>🔋 7. RC Capacitor Smooth Fade</span>
+                        <span class="text-[10px] text-teal-300 font-mono">RC Delay</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-diode">
+                        <span>▶️ 8. Diode One-Way Valve</span>
+                        <span class="text-[10px] text-purple-300 font-mono">PN Junction</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-and">
+                        <span>🔀 9. Logic AND Gate (Series)</span>
+                        <span class="text-[10px] text-rose-300 font-mono">Digital</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-or">
+                        <span>🔀 10. Logic OR Gate (Parallel)</span>
+                        <span class="text-[10px] text-sky-300 font-mono">Digital</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-series-leds">
+                        <span>💡 11. Multi-LED Series Voltage Drop</span>
+                        <span class="text-[10px] text-amber-300 font-mono">Series</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-parallel-leds">
+                        <span>💡 12. Multi-LED Parallel Branches</span>
+                        <span class="text-[10px] text-emerald-300 font-mono">Parallel</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-ldr-pitch">
+                        <span>🔊 13. LDR Light Pitch Controlled Tone</span>
+                        <span class="text-[10px] text-cyan-300 font-mono">Audio LDR</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-monostable-555">
+                        <span>⏱️ 14. 555 Monostable One-Shot Delay</span>
+                        <span class="text-[10px] text-indigo-300 font-mono">Pulse Timer</span>
+                    </button>
+                    <button class="preset-btn py-2 px-2.5 bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700 transition text-left flex items-center justify-between" data-preset="preset-not-gate">
+                        <span>🔀 15. Transistor NOT Gate (Inverter)</span>
+                        <span class="text-[10px] text-rose-300 font-mono">BJT Logic</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Power Sources -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Power Sources</h2>
+                <div class="space-y-1.5">
+                    <button class="tool-btn" data-tool="battery_9v">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-battery">9V</div>
+                            <span>9V DC Battery</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="power_5v">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-battery" style="border-color:#38bdf8; color:#38bdf8">5V</div>
+                            <span>5V Regulated USB Power</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resistors & Passives -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Passives & Controls</h2>
+                <div class="space-y-1.5">
+                    <div class="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700 space-y-2">
+                        <button class="tool-btn" data-tool="resistor">
+                            <div class="flex items-center gap-2.5">
+                                <div class="tool-icon icon-resistor">Ω</div>
+                                <span>Resistor Component</span>
+                            </div>
+                            <span id="resistor-val-label" class="text-xs font-mono text-amber-400 font-bold">1 kΩ</span>
+                        </button>
+                        <div class="flex items-center gap-2 pt-1">
+                            <label class="text-[11px] text-slate-400">Preset:</label>
+                            <select id="resistor-preset-select" class="flex-1 bg-slate-900 border border-slate-700 text-xs rounded px-2 py-1 text-slate-200 font-mono focus:outline-none focus:border-indigo-500">
+                                <option value="22">22 Ω</option>
+                                <option value="100">100 Ω</option>
+                                <option value="220">220 Ω</option>
+                                <option value="330">330 Ω</option>
+                                <option value="1000" selected>1 kΩ</option>
+                                <option value="10000">10 kΩ</option>
+                                <option value="100000">100 kΩ</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="tool-btn" data-tool="potentiometer">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-pot">🎛️</div>
+                            <span>Potentiometer (10kΩ Variable)</span>
+                        </div>
+                    </button>
+
+                    <button class="tool-btn" data-tool="capacitor">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-cap">┨┠</div>
+                            <span>Capacitor (100µF Electrolytic)</span>
+                        </div>
+                    </button>
+
+                    <button class="tool-btn" data-tool="diode">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-diode">▶|</div>
+                            <span>Diode (1N4007 Rectifier)</span>
+                        </div>
+                    </button>
+                    
+                    <button class="tool-btn" data-tool="photoresistor">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-pot" style="background:#ca8a04">☀️</div>
+                            <span>Photoresistor (LDR Light Sensor)</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Active & Semiconductors -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Semiconductors & ICs</h2>
+                <div class="space-y-1.5">
+                    <button class="tool-btn" data-tool="transistor_npn">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-ic">NPN</div>
+                            <span>NPN Transistor (2N2222)</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="ic_555">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-ic">555</div>
+                            <span>555 Timer IC (DIP-8 Package)</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Output Devices -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Outputs & Sound</h2>
+                <div class="space-y-1.5">
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button class="tool-btn" data-tool="led_red">
+                            <div class="flex items-center gap-2">
+                                <div class="tool-icon icon-led-red"></div>
+                                <span>LED Red</span>
+                            </div>
+                        </button>
+                        <button class="tool-btn" data-tool="led_green">
+                            <div class="flex items-center gap-2">
+                                <div class="tool-icon icon-led-green"></div>
+                                <span>LED Green</span>
+                            </div>
+                        </button>
+                        <button class="tool-btn" data-tool="led_blue">
+                            <div class="flex items-center gap-2">
+                                <div class="tool-icon icon-led-blue"></div>
+                                <span>LED Blue</span>
+                            </div>
+                        </button>
+                        <button class="tool-btn" data-tool="led_yellow">
+                            <div class="flex items-center gap-2">
+                                <div class="tool-icon icon-led-yellow"></div>
+                                <span>LED Yellow</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <button class="tool-btn" data-tool="buzzer">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-buzzer">🔊</div>
+                            <span>Piezo Audio Buzzer</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Switches & Inputs -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Switches</h2>
+                <div class="space-y-1.5">
+                    <button class="tool-btn" data-tool="pushbutton">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-wire-black">🔘</div>
+                            <span>Tactile Pushbutton</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="switch_toggle">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-wire-black">🎚️</div>
+                            <span>Latching Toggle Switch</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Wiring -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Jumper Wires</h2>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button class="tool-btn active" data-tool="wire_red">
+                        <div class="flex items-center gap-2">
+                            <div class="tool-icon icon-wire-red">+</div>
+                            <span>Red (+ VCC)</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="wire_black">
+                        <div class="flex items-center gap-2">
+                            <div class="tool-icon icon-wire-black">-</div>
+                            <span>Black (- GND)</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="wire_blue">
+                        <div class="flex items-center gap-2">
+                            <div class="tool-icon icon-wire-blue">W</div>
+                            <span>Blue Signal</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="wire_green">
+                        <div class="flex items-center gap-2">
+                            <div class="tool-icon icon-wire-green">W</div>
+                            <span>Green Signal</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Measurement & Editing -->
+            <div>
+                <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Measurement & Editing</h2>
+                <div class="space-y-1.5">
+                    <button class="tool-btn" data-tool="multimeter">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-multimeter">⚡</div>
+                            <span>Multimeter Probes</span>
+                        </div>
+                    </button>
+                    <button class="tool-btn" data-tool="eraser">
+                        <div class="flex items-center gap-2.5">
+                            <div class="tool-icon icon-wire-black" style="color:#ef4444">🗑️</div>
+                            <span>Eraser Tool</span>
+                        </div>
+                    </button>
+                    <button id="btn-repair" class="w-full py-2 px-3 bg-emerald-950/50 hover:bg-emerald-900/70 text-emerald-300 text-xs font-semibold rounded-lg border border-emerald-800/60 transition flex items-center justify-center gap-2 mt-2">
+                        🔧 Repair Blown Components
+                    </button>
+                    <button id="btn-clear" class="w-full py-2 px-3 bg-red-950/40 hover:bg-red-900/60 text-red-300 text-xs font-semibold rounded-lg border border-red-800/50 transition flex items-center justify-center gap-2 mt-1">
+                        Clear All Components
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Main Canvas Viewport -->
+    <div id="canvas-container">
+        <canvas id="breadboardCanvas" width="980" height="540"></canvas>
+        
+        <!-- Top Control Bar -->
+        <div class="absolute top-5 left-5 flex gap-2 pointer-events-auto items-center">
+            <button id="btn-power-toggle" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-lg border border-emerald-400 transition flex items-center gap-2 tracking-wide">
+                <span id="power-btn-icon" class="text-base">⚡</span>
+                <span id="power-btn-text">POWER ON / START</span>
+            </button>
+            <button id="btn-toggle-guide" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg shadow-lg border border-indigo-400 transition flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                <span>Student Lab Writeup & Theory</span>
+            </button>
+        </div>
+
+        <!-- Circuit Inspector HUD -->
+        <div id="status-panel" class="hud-card absolute top-5 right-5 p-4 w-72 pointer-events-auto">
+            <div class="flex items-center justify-between border-b border-slate-700/80 pb-2 mb-2">
+                <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <span id="status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                    Circuit Inspector
+                </h3>
+                <span id="power-indicator" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">OFF</span>
+            </div>
+            
+            <div id="circuit-status" class="text-xs text-slate-300 space-y-1">
+                Evaluating circuit connection...
+            </div>
+
+            <!-- Multimeter HUD readout -->
+            <div id="multimeter-readout" class="mt-3 pt-2 border-t border-slate-700/80 hidden">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>Multimeter Voltage (DC):</span>
+                    <span class="text-[10px] text-amber-400 font-mono">Probe Mode</span>
+                </div>
+                <div class="bg-slate-950/90 rounded border border-amber-500/40 p-2 text-center">
+                    <span id="mm-value" class="font-mono text-2xl font-bold text-amber-400 tracking-wider">0.00 V</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Component Inspector Card -->
+        <div id="inspector-card" class="hud-card absolute bottom-5 left-5 p-4 w-80 hidden pointer-events-auto">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-2">
+                <h4 id="inspector-title" class="text-xs font-bold text-indigo-300 uppercase">Component Settings</h4>
+                <button id="btn-close-inspector" class="text-slate-400 hover:text-white text-xs">✕</button>
+            </div>
+            <div id="inspector-controls" class="space-y-3 text-xs">
+                <!-- Dynamically populated controls -->
+            </div>
+        </div>
+
+        <!-- Educational Writeup / Lab Notes Overlay Panel -->
+        <div id="guide-modal" class="hud-card absolute top-16 left-5 w-[420px] max-h-[80vh] flex flex-col pointer-events-auto transition-all duration-200 shadow-2xl z-30">
+            <div class="p-3.5 border-b border-slate-700 flex items-center justify-between bg-slate-900/80 rounded-t-xl">
+                <h3 id="guide-title" class="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                    <span>📖 Student Circuit Lab Notes</span>
+                </h3>
+                <button id="btn-close-guide" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">✕ Close</button>
+            </div>
+            <div id="guide-content" class="p-4 overflow-y-auto text-xs text-slate-300 space-y-3.5 scrollbar-custom flex-1">
+                <!-- Dynamic Theory Content Here -->
+            </div>
+        </div>
+
+        <!-- Right Click Context Menu -->
+        <div id="context-menu">
+            <div id="ctx-item-inspect" class="context-item">
+                <span>⚙️</span> Modify & Inspect Properties
+            </div>
+            <div id="ctx-item-duplicate" class="context-item">
+                <span>📋</span> Duplicate Component
+            </div>
+            <div id="ctx-item-flip" class="context-item">
+                <span>🔄</span> Reverse Polarities / Pins
+            </div>
+            <div class="context-divider ctx-comp-only"></div>
+            <div id="ctx-item-probe-red" class="context-item">
+                <span>🔴</span> Place Multimeter Red Probe (+)
+            </div>
+            <div id="ctx-item-probe-black" class="context-item">
+                <span>⬛</span> Place Multimeter Black Probe (-)
+            </div>
+            <div class="context-divider"></div>
+            <div id="ctx-item-add-wire" class="context-item ctx-empty-only">
+                <span>🔌</span> Add Red Wire Here
+            </div>
+            <div id="ctx-item-add-resistor" class="context-item ctx-empty-only">
+                <span>Ω</span> Add 1kΩ Resistor
+            </div>
+            <div id="ctx-item-delete" class="context-item text-red-400 hover:text-red-300 ctx-comp-only">
+                <span>🗑️</span> Remove Component
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    /**
+     * Virtual Breadboard Simulator Pro Studio
+     * Hyperrealistic Graphics & Physical Burnout Physics Engine
+     */
+
+    // --- Audio Engine (Web Audio API) ---
+    let audioCtx = null;
+    let buzzerOsc = null;
+    let buzzerGain = null;
+
+    // --- Particles System for Real-Time Burnout Smoke & Sparks ---
+    let particles = [];
+
+    function createExplosionParticles(x, y, type = 'smoke') {
+        const count = type === 'cap' ? 35 : 22;
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * (type === 'cap' ? 4.5 : 2.8),
+                vy: (Math.random() - 0.7) * (type === 'cap' ? 4.5 : 3.2) - 1.2,
+                size: Math.random() * (type === 'cap' ? 6 : 4) + 2.5,
+                alpha: 1.0,
+                color: Math.random() > 0.35 ? (type === 'cap' ? '#f59e0b' : '#ef4444') : '#94a3b8',
+                decay: Math.random() * 0.025 + 0.012,
+                isSpark: Math.random() > 0.5
+            });
+        }
+    }
+
+    function updateAndDrawParticles() {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= p.decay;
+            if (p.isSpark) p.size *= 0.94;
+            else p.size += 0.18;
+
+            if (p.alpha <= 0) {
+                particles.splice(i, 1);
+                continue;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, p.alpha);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playPopSound() {
+        initAudio();
+        if (!audioCtx) return;
+        try {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.12);
+        } catch(e){}
+    }
+
+    function playSizzleSound() {
+        initAudio();
+        if (!audioCtx) return;
+        try {
+            let bufferSize = audioCtx.sampleRate * 0.2;
+            let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            let data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            let noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            let gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+            noise.connect(gain);
+            gain.connect(audioCtx.destination);
+            noise.start();
+        } catch(e){}
+    }
+
+    function setBuzzerSound(active, freq = 880) {
+        initAudio();
+        if (!audioCtx) return;
+
+        if (active) {
+            if (!buzzerOsc) {
+                buzzerOsc = audioCtx.createOscillator();
+                buzzerGain = audioCtx.createGain();
+                buzzerOsc.type = 'square';
+                buzzerOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                buzzerGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                buzzerOsc.connect(buzzerGain);
+                buzzerGain.connect(audioCtx.destination);
+                buzzerOsc.start();
+            } else {
+                buzzerOsc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            }
+        } else {
+            if (buzzerOsc) {
+                try {
+                    buzzerOsc.stop();
+                    buzzerOsc.disconnect();
+                } catch(e){}
+                buzzerOsc = null;
+                buzzerGain = null;
+            }
+        }
+    }
+
+    // --- Board & Canvas Configuration ---
+    const canvas = document.getElementById('breadboardCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const bbParams = {
+        cols: 30,
+        pitch: 22,
+        startX: 170,
+        startY: 50,
+        width: 760,
+        height: 440
+    };
+
+    let holes = [];
+    let components = [];
+    let nextCompId = 1;
+
+    let currentTool = 'wire_red';
+    let currentResistorVal = 1000;
+    let selectedHole = null;
+    let hoverHole = null;
+    let activeComponent = null;
+    let mousePos = { x: 0, y: 0 };
+    let currentPresetId = 'preset-led';
+
+    // Multimeter Probes State
+    let mmProbeRed = null;
+    let mmProbeBlack = null;
+
+    // Context Menu State
+    const contextMenu = document.getElementById('context-menu');
+    let contextTargetComp = null;
+    let contextTargetHole = null;
+
+    // Circuit Solver Engine State
+    let circuitState = {
+        powerSwitchOn: false,
+        hasPower: false,
+        shortCircuit: false,
+        nodeVoltages: {},
+        litLeds: {},
+        buzzerActive: false,
+        oscillatorPhase: 0
+    };
+
+    // --- Student Educational Preset Theories & Guides ---
+    const presetGuides = {
+        'preset-mistake-no-res': {
+            title: "💥 Common Mistake 1: Fried LED (Missing Resistor)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ RUN REAL-TIME BURNOUT TEST (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-red-950/80 border border-red-700/80 rounded-lg text-red-200">
+                        <strong class="text-white font-bold flex items-center gap-1.5">
+                            <span>💥 COMPONENT BURNOUT HAZARD!</span>
+                        </strong>
+                        <p class="mt-1">Click <strong>POWER ON</strong> above to watch the LED heat up, glow white-hot, and pop in real-time! A 9V supply connected directly across a 2.0V LED creates an over-current of >500mA, destroying the internal semiconductor diode junction.</p>
+                    </div>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-rose-300 space-y-1">
+                        <div>V_supply = 9.0 V | V_forward = 2.0 V</div>
+                        <div>Internal Wire Resistance R_internal ≈ 2 Ω</div>
+                        <div>I = (9.0 - 2.0) / 2 = 3,500 mA (3.5 Amps!)</div>
+                        <div class="text-red-400 font-bold">Max Safe LED Limit = 20 mA to 30 mA!</div>
+                    </div>
+                    <p><strong class="text-slate-200">What Happened:</strong> LEDs have almost zero internal resistance once turned on. Without a series limiting resistor, electrical power turns into extreme heat, melting the tiny bond wire inside the epoxy bulb.</p>
+                    <p><strong class="text-emerald-400">How to Fix It:</strong> Click <em>"🔧 Repair Blown Components"</em> in the left panel, or replace the direct wire with a 330Ω or 1kΩ resistor!</p>
+                </div>
+            `
+        },
+        'preset-mistake-low-res': {
+            title: "💥 Common Mistake 2: Overcurrent (Resistor Value Too Low)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ RUN REAL-TIME BURNOUT TEST (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-red-950/80 border border-red-700/80 rounded-lg text-red-200">
+                        <strong class="text-white font-bold">💥 TOO MUCH CURRENT (318 mA)!</strong>
+                        <p class="mt-1">A 22Ω resistor was used instead of 330Ω or 1kΩ. While there IS a resistor, 22Ω is far too small to limit current to safe limits!</p>
+                    </div>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-amber-300 space-y-1">
+                        <div>I = (9.0 V - 2.0 V) / 22 Ω = 318 mA</div>
+                        <div>P_dissipated = I² × R = 0.318² × 22 = 2.2 Watts</div>
+                    </div>
+                    <p><strong class="text-slate-200">Student Pitfall:</strong> Students often pick 10Ω or 22Ω resistors by mistake instead of 220Ω, 330Ω, or 1kΩ. Always calculate Ohm's Law (R = (V_supply - V_LED) / I) before picking resistor values!</p>
+                </div>
+            `
+        },
+        'preset-mistake-cap-reverse': {
+            title: "💥 Common Mistake 3: Exploded Electrolytic Capacitor",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ RUN REAL-TIME BURNOUT TEST (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-amber-950/80 border border-amber-700/80 rounded-lg text-amber-200">
+                        <strong class="text-white font-bold">💥 REVERSE POLARITY RUPTURE!</strong>
+                        <p class="mt-1">Electrolytic capacitors are POLARIZED! Click Power ON to watch gas pressure build up and rupture the rubber top seal in real-time!</p>
+                    </div>
+                    <p><strong class="text-slate-200">How to Spot Capacitor Polarity:</strong> Real electrolytic capacitors have a thick stripe marked with minus signs (---) on their negative leg. The longer lead is always Positive (+).</p>
+                    <p><strong class="text-emerald-400">How to Fix:</strong> Right-click on the blown capacitor and choose <em>"Reverse Polarities / Pins"</em> then click Repair!</p>
+                </div>
+            `
+        },
+        'preset-mistake-short': {
+            title: "💥 Common Mistake 4: Direct VCC-to-GND Short Circuit",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ RUN REAL-TIME BURNOUT TEST (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-red-950/80 border border-red-700/80 rounded-lg text-red-200">
+                        <strong class="text-white font-bold">⚠️ SHORT CIRCUIT HAZARD!</strong>
+                        <p class="mt-1">A jumper wire connects +9V directly to GND without passing through any load. This creates maximum battery discharge current, dangerous wiring heat, and zero voltage for the rest of the breadboard!</p>
+                    </div>
+                    <p><strong class="text-slate-200">Why Short Circuits Happen:</strong> Accidental bridging on breadboard power rails is the #1 mistake in intro electronics labs. Always double-check power rail jumper wire alignment!</p>
+                </div>
+            `
+        },
+        'preset-mistake-diode-reverse': {
+            title: "⚠️ Common Mistake 5: Reversed Diode (Blocked Current)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <p><strong class="text-amber-300">Observation:</strong> The circuit is connected, but the LED will not light up at all!</p>
+                    <p><strong class="text-slate-200">Explanation:</strong> Diodes are one-way electrical valves. The 1N4007 diode is installed in reverse bias (Cathode silver band towards VCC). It blocks all current flow.</p>
+                    <p><strong class="text-emerald-400">Try This:</strong> Right-click the diode and choose <em>"Reverse Polarities / Pins"</em> to allow forward current to pass!</p>
+                </div>
+            `
+        },
+        'preset-mistake-floating-transistor': {
+            title: "⚠️ Common Mistake 6: Floating Transistor Base (Unbiased)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-amber-950/80 border border-amber-700/80 rounded-lg text-amber-200">
+                        <strong class="text-white font-bold">⚠️ FLOATING BASE PIN!</strong>
+                        <p class="mt-1">The NPN transistor's base (middle lead) is disconnected. Without a base current (I_B), the transistor channel remains completely non-conductive (OFF).</p>
+                    </div>
+                    <p><strong class="text-slate-200">Why It Happens:</strong> Students often assume a transistor automatically conducts like a closed switch. NPN transistors require at least 0.7V at the base relative to the emitter to turn ON!</p>
+                </div>
+            `
+        },
+        'preset-mistake-led-reverse': {
+            title: "⚠️ Common Mistake 7: Reverse-Biased LED (Swapped Leads)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <p><strong class="text-amber-300">Observation:</strong> The circuit has power and a resistor, but the LED remains completely dark.</p>
+                    <p><strong class="text-slate-200">Explanation:</strong> The LED's Cathode (flat side) is connected to Positive VCC, and the Anode is wired toward GND. Diode PN junctions block current in reverse bias!</p>
+                    <p><strong class="text-emerald-400">Fix:</strong> Right-click the LED and select <em>"Reverse Polarities / Pins"</em>!</p>
+                </div>
+            `
+        },
+        'preset-mistake-floating-reset': {
+            title: "⚠️ Common Mistake 8: Floating 555 Reset Pin (No Oscillation)",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-amber-950/80 border border-amber-700/80 rounded-lg text-amber-200">
+                        <strong class="text-white font-bold">⚠️ UNCONNECTED RESET PIN (PIN 4)!</strong>
+                        <p class="mt-1">Pin 4 on NE555 timer ICs is an active-LOW reset logic pin. Leaving it unconnected lets ambient electrical noise hold the chip in Reset state!</p>
+                    </div>
+                    <p><strong class="text-emerald-400">Rule of Thumb:</strong> In digital ICs, active-LOW reset pins must always be pulled HIGH to VCC if not actively used!</p>
+                </div>
+            `
+        },
+        'preset-mistake-parallel-led': {
+            title: "💥 Common Mistake 9: Parallel LEDs with Single Resistor",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-rose-950/80 border border-rose-700/80 rounded-lg text-rose-200">
+                        <strong class="text-white font-bold">💥 CURRENT HOGGING & OVERHEAT!</strong>
+                        <p class="mt-1">Red LED (Forward V_f ≈ 2.0V) and Blue LED (V_f ≈ 3.2V) are connected in parallel sharing a single resistor. The Red LED turns on first, clamping voltage to 2.0V so the Blue LED never turns on at all!</p>
+                    </div>
+                    <p><strong class="text-emerald-400">Golden Rule:</strong> NEVER share one resistor between parallel LEDs! Always assign a dedicated resistor to each parallel LED branch.</p>
+                </div>
+            `
+        },
+        'preset-mistake-pot-short': {
+            title: "💥 Common Mistake 10: Potentiometer Rail Short Circuit",
+            html: `
+                <div class="space-y-2.5">
+                    <button onclick="togglePowerSwitch(true)" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 shadow-md">
+                        <span>⚡ TEST CIRCUIT (POWER ON)</span>
+                    </button>
+                    <div class="p-2.5 bg-red-950/80 border border-red-700/80 rounded-lg text-red-200">
+                        <strong class="text-white font-bold">💥 DIRECT POWER SHORT AT 0Ω!</strong>
+                        <p class="mt-1">The potentiometer wiper is wired across VCC to GND. Turning the knob to 0Ω creates a direct short across the power supply!</p>
+                    </div>
+                </div>
+            `
+        },
+        'preset-led': {
+            title: "1. LED & Current Limiting Resistor Protection",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-indigo-300">Objective:</strong> Learn why Light Emitting Diodes (LEDs) require a current-limiting resistor in series.</p>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-amber-300 space-y-1">
+                        <div>V_supply = 9.0 V | V_forward (LED) ≈ 2.0 V</div>
+                        <div>I = (V_supply - V_forward) / R</div>
+                        <div>With R = 1kΩ: I = (9.0 - 2.0) / 1000 = 7.0 mA</div>
+                    </div>
+                    <p><strong class="text-slate-200">How It Works:</strong> An LED is a semiconductor diode. The 1kΩ resistor drops excess voltage and limits current to a safe 7mA (well below the 25mA burnout threshold).</p>
+                    <p><strong class="text-emerald-400">Try This Experiment:</strong> Right-click on the resistor and select <em>Modify & Inspect Properties</em>. Lower the resistance value to 220Ω and observe the LED glow brighter!</p>
+                </div>
+            `
+        },
+        'preset-divider': {
+            title: "2. Voltage Divider Circuit",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-amber-300">Objective:</strong> Create a reference voltage using two resistors in series.</p>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-emerald-300 space-y-1">
+                        <div>V_out = V_in × (R2 / (R1 + R2))</div>
+                        <div>V_out = 9.0 V × (1000 / (1000 + 1000)) = 4.50 V</div>
+                    </div>
+                    <p><strong class="text-slate-200">How It Works:</strong> Equal series resistors split the input voltage directly in half (4.50V). Use the Multimeter probes to confirm!</p>
+                </div>
+            `
+        },
+        'preset-pot': {
+            title: "3. Potentiometer Light Dimmer",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-indigo-300">Objective:</strong> Control LED brightness using a 3-pin variable resistor knob.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Turning the potentiometer knob changes the wiper resistance, varying current to the LED from dim to bright.</p>
+                </div>
+            `
+        },
+        'preset-transistor': {
+            title: "4. Transistor Switch & Piezo Buzzer",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-emerald-400">Objective:</strong> Use an NPN transistor (2N2222) as an electronic switch.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Pressing the pushbutton feeds a tiny base current (Ib), causing a large collector current (Ic) to activate the piezo audio buzzer!</p>
+                </div>
+            `
+        },
+        'preset-dark-alarm': {
+            title: "5. Light-Sensing (LDR) Night Sensor",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-cyan-300">Objective:</strong> Detect ambient light levels using a Light Dependent Resistor (Photoresistor).</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Darkness increases LDR resistance, biasing the transistor ON to sound the alarm buzzer when light drops!</p>
+                </div>
+            `
+        },
+        'preset-555': {
+            title: "6. 555 Timer Pulse Oscillator",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-indigo-400">Objective:</strong> Build an astable pulse generator clock using an 8-pin 555 Timer IC.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> The 555 timer continuously charges and discharges an RC timing network, producing repeating output voltage pulses!</p>
+                </div>
+            `
+        },
+        'preset-rc': {
+            title: "7. RC Capacitor Smooth Fade (Time Constant)",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-teal-300">Objective:</strong> Observe electrical energy storage in a 100µF capacitor.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Releasing the button lets the capacitor slowly release stored charge through the LED, creating a smooth fading effect!</p>
+                </div>
+            `
+        },
+        'preset-diode': {
+            title: "8. Diode One-Way Valve (PN Junction)",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-purple-300">Objective:</strong> Demonstrate semiconductor PN junction rectification.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Current flows easily from Anode (+) to Cathode (-), dropping ~0.7V across the silicon junction.</p>
+                </div>
+            `
+        },
+        'preset-and': {
+            title: "9. Digital Logic AND Gate (Series Switches)",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-rose-300">Objective:</strong> Implement Boolean AND logic using physical switches.</p>
+                    <p><strong class="text-slate-200">Logic:</strong> Output is HIGH (LED ON) ONLY when Switch A AND Switch B are both pressed!</p>
+                </div>
+            `
+        },
+        'preset-or': {
+            title: "10. Digital Logic OR Gate (Parallel Switches)",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-sky-300">Objective:</strong> Implement Boolean OR logic using parallel paths.</p>
+                    <p><strong class="text-slate-200">Logic:</strong> Output is HIGH (LED ON) when Switch A OR Switch B (or both) are pressed!</p>
+                </div>
+            `
+        },
+        'preset-series-leds': {
+            title: "11. Multi-LED Series Voltage Drop",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-amber-300">Objective:</strong> Observe Kirchhoff's Voltage Law across multiple series LEDs.</p>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-amber-300 space-y-1">
+                        <div>V_total = V_R + V_LED1 + V_LED2 + V_LED3</div>
+                        <div>9.0V = V_R + 2.0V + 2.2V + 2.1V = V_R + 6.3V</div>
+                        <div>V_resistor = 2.7 V | I = 2.7 / 330 = 8.1 mA</div>
+                    </div>
+                    <p><strong class="text-slate-200">How It Works:</strong> In a series circuit, voltage drops sum together while current remains identical across all components.</p>
+                </div>
+            `
+        },
+        'preset-parallel-leds': {
+            title: "12. Multi-LED Parallel Branches with Ballast Resistors",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-emerald-300">Objective:</strong> Connect multiple LEDs safely in parallel using individual resistors.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Placing a separate resistor in each branch prevents current hogging and allows Red, Green, and Blue LEDs with different forward voltages to illuminate evenly!</p>
+                </div>
+            `
+        },
+        'preset-ldr-pitch': {
+            title: "13. LDR Light-Controlled Audio Sounder",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-cyan-300">Objective:</strong> Dynamically alter audio pitch using ambient light intensity.</p>
+                    <p><strong class="text-slate-200">How It Works:</strong> Covering or shining light on the photoresistor varies transistor conduction, changing current through the piezo sounder!</p>
+                </div>
+            `
+        },
+        'preset-monostable-555': {
+            title: "14. 555 Monostable One-Shot Pulse Delay Timer",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-indigo-300">Objective:</strong> Generate a fixed-duration output pulse triggered by a button press.</p>
+                    <div class="bg-slate-900/90 p-2.5 rounded border border-slate-700 font-mono text-[11px] text-indigo-300">
+                        Pulse Duration T = 1.1 × R × C seconds
+                    </div>
+                </div>
+            `
+        },
+        'preset-not-gate': {
+            title: "15. Transistor NOT Gate Logic Inverter",
+            html: `
+                <div class="space-y-2.5">
+                    <p><strong class="text-rose-300">Objective:</strong> Implement Boolean NOT logic using an NPN transistor.</p>
+                    <p><strong class="text-slate-200">Logic:</strong> Output LED is ON by default. Pressing the input button pulls the transistor collector LOW, turning the LED OFF!</p>
+                </div>
+            `
+        }
+    };
+
+    // --- Collapsible Accordion Handlers ---
+    function setupCollapsibles() {
+        const toggleSection = (headerId, containerId, arrowId) => {
+            const header = document.getElementById(headerId);
+            const container = document.getElementById(containerId);
+            const arrow = document.getElementById(arrowId);
+            if (header && container && arrow) {
+                header.addEventListener('click', () => {
+                    const isHidden = container.classList.contains('hidden');
+                    if (isHidden) {
+                        container.classList.remove('hidden');
+                        arrow.style.transform = 'rotate(0deg)';
+                    } else {
+                        container.classList.add('hidden');
+                        arrow.style.transform = 'rotate(-90deg)';
+                    }
+                });
+            }
+        };
+
+        toggleSection('header-mistakes', 'container-mistakes', 'arrow-mistakes');
+        toggleSection('header-working', 'container-working', 'arrow-working');
+    }
+
+    // --- Initialization & Hole Grid Setup ---
+    function init() {
+        generateHoles();
+        setupEventListeners();
+        setupContextMenu();
+        setupCollapsibles();
+        
+        // Default Load
+        loadPreset('preset-led');
+
+        // Main Render & Oscillation Loop
+        setInterval(() => {
+            circuitState.oscillatorPhase = (circuitState.oscillatorPhase + 10) % 100;
+            evaluateCircuit();
+            renderCanvas();
+        }, 50);
+    }
+
+    function generateHoles() {
+        holes = [];
+        let { cols, pitch, startX } = bbParams;
+
+        for (let c = 0; c < cols; c++) {
+            let x = startX + c * pitch;
+
+            // Top Power Rails (+ / -)
+            holes.push({ id: `top_pos_${c+1}`, netId: `net_top_pos`, col: c+1, x: x, y: 94, type: 'rail' });
+            holes.push({ id: `top_neg_${c+1}`, netId: `net_top_neg`, col: c+1, x: x, y: 116, type: 'rail' });
+
+            // Top Terminal Strip (Rows A..E connected vertically)
+            let topNet = `net_top_col_${c+1}`;
+            for (let r = 0; r < 5; r++) {
+                let y = 160 + r * pitch;
+                holes.push({ id: `term_top_${c+1}_${r}`, netId: topNet, col: c+1, row: r, x: x, y: y, type: 'terminal' });
+            }
+
+            // Bottom Terminal Strip (Rows F..J connected vertically)
+            let botNet = `net_bot_col_${c+1}`;
+            for (let r = 0; r < 5; r++) {
+                let y = 292 + r * pitch;
+                holes.push({ id: `term_bot_${c+1}_${r}`, netId: botNet, col: c+1, row: r + 5, x: x, y: y, type: 'terminal' });
+            }
+
+            // Bottom Power Rails (+ / -)
+            holes.push({ id: `bot_pos_${c+1}`, netId: `net_bot_pos`, col: c+1, x: x, y: 424, type: 'rail' });
+            holes.push({ id: `bot_neg_${c+1}`, netId: `net_bot_neg`, col: c+1, x: x, y: 446, type: 'rail' });
+        }
+    }
+
+    // --- Context Menu Operations ---
+    function setupContextMenu() {
+        document.getElementById('ctx-item-inspect').addEventListener('click', () => {
+            if (contextTargetComp) openInspector(contextTargetComp);
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-duplicate').addEventListener('click', () => {
+            if (contextTargetComp) duplicateComponent(contextTargetComp);
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-flip').addEventListener('click', () => {
+            if (contextTargetComp) flipComponentPins(contextTargetComp);
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-delete').addEventListener('click', () => {
+            if (contextTargetComp) {
+                let idx = components.indexOf(contextTargetComp);
+                if (idx !== -1) components.splice(idx, 1);
+                if (activeComponent === contextTargetComp) closeInspector();
+                evaluateCircuit();
+            }
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-probe-red').addEventListener('click', () => {
+            if (contextTargetHole) mmProbeRed = contextTargetHole;
+            evaluateCircuit();
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-probe-black').addEventListener('click', () => {
+            if (contextTargetHole) mmProbeBlack = contextTargetHole;
+            evaluateCircuit();
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-add-wire').addEventListener('click', () => {
+            if (contextTargetHole) {
+                let neighbor = holes.find(h => h.col === contextTargetHole.col && h.id !== contextTargetHole.id);
+                if (neighbor) add2PinComponent('wire_red', contextTargetHole, neighbor);
+            }
+            hideContextMenu();
+        });
+
+        document.getElementById('ctx-item-add-resistor').addEventListener('click', () => {
+            if (contextTargetHole) {
+                let neighbor = holes.find(h => h.col === contextTargetHole.col + 3) || holes.find(h => h.col === contextTargetHole.col);
+                if (neighbor) add2PinComponent('resistor', contextTargetHole, neighbor);
+            }
+            hideContextMenu();
+        });
+    }
+
+    function handleRightClick(e) {
+        e.preventDefault();
+        hideContextMenu();
+
+        const rect = canvas.getBoundingClientRect();
+        let rx = e.clientX - rect.left;
+        let ry = e.clientY - rect.top;
+
+        contextTargetComp = findComponentNear(rx, ry);
+        contextTargetHole = hoverHole;
+
+        const compOnlyEls = document.querySelectorAll('.ctx-comp-only');
+        const emptyOnlyEls = document.querySelectorAll('.ctx-empty-only');
+
+        if (contextTargetComp) {
+            compOnlyEls.forEach(el => el.style.display = 'flex');
+            emptyOnlyEls.forEach(el => el.style.display = 'none');
+        } else if (contextTargetHole) {
+            compOnlyEls.forEach(el => el.style.display = 'none');
+            emptyOnlyEls.forEach(el => el.style.display = 'flex');
+        } else {
+            return;
+        }
+
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.top = `${e.clientY}px`;
+        contextMenu.style.display = 'block';
+    }
+
+    function hideContextMenu() {
+        contextMenu.style.display = 'none';
+    }
+
+    function setupEventListeners() {
+        // Tool Selection
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTool = btn.dataset.tool;
+                selectedHole = null;
+                initAudio();
+            });
+        });
+
+        // Preset Buttons
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                let pId = btn.dataset.preset;
+                if (pId) loadPreset(pId);
+            });
+        });
+
+        // Resistor Value Preset Selector
+        const resSelect = document.getElementById('resistor-preset-select');
+        resSelect.addEventListener('change', (e) => {
+            currentResistorVal = parseFloat(e.target.value);
+            document.getElementById('resistor-val-label').innerText = formatOhms(currentResistorVal);
+        });
+
+        // Power Toggle Button
+        document.getElementById('btn-power-toggle').addEventListener('click', () => {
+            togglePowerSwitch();
+        });
+
+        // Repair Blown Components
+        document.getElementById('btn-repair').addEventListener('click', () => {
+            components.forEach(c => {
+                c.burnt = false;
+                c.popped = false;
+                c.heat = 0;
+            });
+            evaluateCircuit();
+        });
+
+        // Clear Board
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            components = [];
+            selectedHole = null;
+            mmProbeRed = null;
+            mmProbeBlack = null;
+            activeComponent = null;
+            closeInspector();
+            evaluateCircuit();
+        });
+
+        // Inspector Close
+        document.getElementById('btn-close-inspector').addEventListener('click', closeInspector);
+
+        // Guide Modal Toggle
+        const guideModal = document.getElementById('guide-modal');
+        document.getElementById('btn-toggle-guide').addEventListener('click', () => {
+            guideModal.classList.toggle('hidden');
+        });
+        document.getElementById('btn-close-guide').addEventListener('click', () => {
+            guideModal.classList.add('hidden');
+        });
+
+        // Canvas Handlers
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('contextmenu', handleRightClick);
+
+        window.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) hideContextMenu();
+        });
+    }
+
+    function handleMouseMove(e) {
+        const rect = canvas.getBoundingClientRect();
+        mousePos.x = e.clientX - rect.left;
+        mousePos.y = e.clientY - rect.top;
+
+        hoverHole = null;
+        let minDist = 14;
+        for (let h of holes) {
+            let d = Math.hypot(h.x - mousePos.x, h.y - mousePos.y);
+            if (d < minDist) {
+                minDist = d;
+                hoverHole = h;
+            }
+        }
+    }
+
+    function handleMouseDown(e) {
+        if (e.button === 2) return;
+        initAudio();
+
+        if (currentTool === 'eraser') {
+            eraseAt(mousePos.x, mousePos.y);
+            return;
+        }
+
+        if (currentTool === 'multimeter') {
+            if (hoverHole) {
+                if (!mmProbeRed) mmProbeRed = hoverHole;
+                else if (!mmProbeBlack) mmProbeBlack = hoverHole;
+                else { mmProbeRed = hoverHole; mmProbeBlack = null; }
+                evaluateCircuit();
+            } else {
+                mmProbeRed = null; mmProbeBlack = null; evaluateCircuit();
+            }
+            return;
+        }
+
+        let clickedComp = findComponentNear(mousePos.x, mousePos.y);
+        if (clickedComp && !selectedHole) {
+            if (clickedComp.type === 'pushbutton') {
+                clickedComp.pressed = !clickedComp.pressed;
+                evaluateCircuit();
+                return;
+            } else if (clickedComp.type === 'switch_toggle') {
+                clickedComp.state = !clickedComp.state;
+                evaluateCircuit();
+                return;
+            } else {
+                openInspector(clickedComp);
+            }
+        }
+
+        if (hoverHole) {
+            if (currentTool === 'ic_555') {
+                placeIC555(hoverHole);
+                return;
+            }
+            if (currentTool === 'potentiometer' || currentTool === 'transistor_npn') {
+                place3PinComp(currentTool, hoverHole);
+                return;
+            }
+
+            if (!selectedHole) {
+                selectedHole = hoverHole;
+            } else {
+                if (selectedHole.id !== hoverHole.id) {
+                    add2PinComponent(currentTool, selectedHole, hoverHole);
+                }
+                selectedHole = null;
+            }
+        } else {
+            selectedHole = null;
+        }
+    }
+
+    function eraseAt(x, y) {
+        let comp = findComponentNear(x, y);
+        if (comp) {
+            let idx = components.indexOf(comp);
+            if (idx !== -1) components.splice(idx, 1);
+            evaluateCircuit();
+        }
+    }
+
+    function findComponentNear(x, y) {
+        return components.find(c => {
+            if (c.startHole && c.endHole) {
+                let d = distToSegment({x:x, y:y}, c.startHole, c.endHole);
+                return d < 12;
+            }
+            if (c.pins) {
+                return c.pins.some(p => Math.hypot(p.x - x, p.y - y) < 14);
+            }
+            return false;
+        });
+    }
+
+    function distToSegment(p, v, w) {
+        let l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
+        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    // --- Component Creation ---
+    function add2PinComponent(tool, start, end) {
+        let comp = {
+            id: nextCompId++,
+            tool: tool,
+            startHole: start,
+            endHole: end,
+            burnt: false,
+            popped: false,
+            heat: 0
+        };
+
+        if (tool.startsWith('wire_')) {
+            comp.type = 'wire';
+            comp.color = tool.split('_')[1];
+        } else if (tool === 'resistor') {
+            comp.type = 'resistor';
+            comp.value = currentResistorVal;
+        } else if (tool.startsWith('led_')) {
+            comp.type = 'led';
+            comp.color = tool.split('_')[1];
+        } else if (tool === 'capacitor') {
+            comp.type = 'capacitor';
+            comp.value = 0.0001;
+        } else if (tool === 'diode') {
+            comp.type = 'diode';
+        } else if (tool === 'photoresistor') {
+            comp.type = 'photoresistor';
+            comp.light = 0.5;
+        } else if (tool === 'buzzer') {
+            comp.type = 'buzzer';
+        } else if (tool === 'pushbutton') {
+            comp.type = 'pushbutton';
+            comp.pressed = false;
+        } else if (tool === 'switch_toggle') {
+            comp.type = 'switch_toggle';
+            comp.state = true;
+        } else if (tool.startsWith('battery_') || tool.startsWith('power_')) {
+            comp.type = 'power';
+            comp.voltage = tool.includes('9v') ? 9.0 : 5.0;
+        }
+
+        components.push(comp);
+        evaluateCircuit();
+    }
+
+    function place3PinComp(tool, centerHole) {
+        let col = centerHole.col;
+        let h1 = holes.find(h => h.col === col - 1 && h.row === centerHole.row);
+        let h2 = centerHole;
+        let h3 = holes.find(h => h.col === col + 1 && h.row === centerHole.row);
+
+        if (!h1 || !h3) return;
+
+        let comp = {
+            id: nextCompId++,
+            type: tool,
+            pins: [h1, h2, h3],
+            knob: 0.5
+        };
+        components.push(comp);
+        evaluateCircuit();
+    }
+
+    function placeIC555(topHole) {
+        let col = topHole.col;
+        let topPins = [], botPins = [];
+
+        for (let i = 0; i < 4; i++) {
+            let ht = holes.find(h => h.col === col + i && h.row === 4); // Row E
+            let hb = holes.find(h => h.col === col + i && h.row === 5); // Row F
+            if (ht) topPins.push(ht);
+            if (hb) botPins.push(hb);
+        }
+
+        if (topPins.length === 4 && botPins.length === 4) {
+            let comp = {
+                id: nextCompId++,
+                type: 'ic_555',
+                pins: [...botPins, ...topPins.reverse()]
+            };
+            components.push(comp);
+            evaluateCircuit();
+        }
+    }
+
+    function flipComponentPins(comp) {
+        if (comp.startHole && comp.endHole) {
+            let temp = comp.startHole;
+            comp.startHole = comp.endHole;
+            comp.endHole = temp;
+        } else if (comp.pins) {
+            comp.pins.reverse();
+        }
+        evaluateCircuit();
+    }
+
+    function duplicateComponent(comp) {
+        let offsetCol = 2;
+        if (comp.startHole && comp.endHole) {
+            let h1 = holes.find(h => h.col === comp.startHole.col + offsetCol && h.row === comp.startHole.row) || comp.startHole;
+            let h2 = holes.find(h => h.col === comp.endHole.col + offsetCol && h.row === comp.endHole.row) || comp.endHole;
+            let newComp = JSON.parse(JSON.stringify(comp));
+            newComp.id = nextCompId++;
+            newComp.startHole = h1;
+            newComp.endHole = h2;
+            components.push(newComp);
+            evaluateCircuit();
+        }
+    }
+
+    // --- Component Inspector Popup ---
+    function openInspector(comp) {
+        activeComponent = comp;
+        const card = document.getElementById('inspector-card');
+        const title = document.getElementById('inspector-title');
+        const container = document.getElementById('inspector-controls');
+
+        title.innerText = `${comp.type.toUpperCase()} PROPERTIES`;
+        container.innerHTML = '';
+
+        if (comp.type === 'resistor') {
+            container.innerHTML = `
+                <div>
+                    <label class="block text-slate-400 mb-1">Resistance Value (Ω):</label>
+                    <input type="number" id="inp-res-val" value="${comp.value}" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-amber-400">
+                </div>
+            `;
+            document.getElementById('inp-res-val').addEventListener('input', (e) => {
+                comp.value = parseFloat(e.target.value) || 100;
+                evaluateCircuit();
+            });
+        } else if (comp.type === 'potentiometer') {
+            container.innerHTML = `
+                <div>
+                    <label class="block text-slate-400 mb-1">Knob Position (${Math.round(comp.knob * 100)}%):</label>
+                    <input type="range" id="inp-pot-knob" min="0" max="1" step="0.05" value="${comp.knob}" class="w-full">
+                </div>
+            `;
+            document.getElementById('inp-pot-knob').addEventListener('input', (e) => {
+                comp.knob = parseFloat(e.target.value);
+                openInspector(comp);
+                evaluateCircuit();
+            });
+        } else if (comp.type === 'photoresistor') {
+            container.innerHTML = `
+                <div>
+                    <label class="block text-slate-400 mb-1">Ambient Light Level (${Math.round(comp.light * 100)}%):</label>
+                    <input type="range" id="inp-ldr-light" min="0" max="1" step="0.05" value="${comp.light}" class="w-full">
+                </div>
+            `;
+            document.getElementById('inp-ldr-light').addEventListener('input', (e) => {
+                comp.light = parseFloat(e.target.value);
+                openInspector(comp);
+                evaluateCircuit();
+            });
+        } else {
+            container.innerHTML = `<p class="text-slate-400 text-xs">Standard component active.</p>`;
+        }
+
+        card.classList.remove('hidden');
+    }
+
+    function closeInspector() {
+        activeComponent = null;
+        document.getElementById('inspector-card').classList.add('hidden');
+    }
+
+    // --- Power Toggle Handler ---
+    function togglePowerSwitch(forceState) {
+        if (typeof forceState === 'boolean') {
+            circuitState.powerSwitchOn = forceState;
+        } else {
+            circuitState.powerSwitchOn = !circuitState.powerSwitchOn;
+        }
+
+        const btn = document.getElementById('btn-power-toggle');
+        const btnIcon = document.getElementById('power-btn-icon');
+        const btnText = document.getElementById('power-btn-text');
+
+        if (circuitState.powerSwitchOn) {
+            btn.className = 'px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow-lg border border-red-400 transition flex items-center gap-2 tracking-wide animate-pulse';
+            btnIcon.innerText = '⏹';
+            btnText.innerText = 'POWER OFF / STOP';
+        } else {
+            btn.className = 'px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-lg border border-emerald-400 transition flex items-center gap-2 tracking-wide';
+            btnIcon.innerText = '⚡';
+            btnText.innerText = 'POWER ON / START';
+        }
+
+        evaluateCircuit();
+    }
+
+    // --- Circuit Solver Physics Engine ---
+    function evaluateCircuit() {
+        circuitState.hasPower = false;
+        circuitState.shortCircuit = false;
+        circuitState.nodeVoltages = {};
+        circuitState.litLeds = {};
+        circuitState.buzzerActive = false;
+
+        if (!circuitState.powerSwitchOn) {
+            setBuzzerSound(false);
+            updateStatusUI();
+            return;
+        }
+
+        let parent = {};
+        function find(i) {
+            if (parent[i] === undefined) parent[i] = i;
+            if (parent[i] === i) return i;
+            return parent[i] = find(parent[i]);
+        }
+        function union(i, j) {
+            let rootI = find(i);
+            let rootJ = find(j);
+            if (rootI !== rootJ) parent[rootI] = rootJ;
+        }
+
+        holes.forEach(h => find(h.netId));
+
+        components.forEach(c => {
+            if (c.type === 'wire') {
+                union(c.startHole.netId, c.endHole.netId);
+            } else if (c.type === 'pushbutton' && c.pressed) {
+                union(c.startHole.netId, c.endHole.netId);
+            } else if (c.type === 'switch_toggle' && c.state) {
+                union(c.startHole.netId, c.endHole.netId);
+            }
+        });
+
+        let vccNets = new Map();
+        let gndNets = new Set();
+
+        let powerSources = components.filter(c => c.type === 'power');
+        powerSources.forEach(p => {
+            let posNet = find(p.startHole.netId);
+            let negNet = find(p.endHole.netId);
+            vccNets.set(posNet, p.voltage);
+            gndNets.add(negNet);
+        });
+
+        for (let [pNet, v] of vccNets) {
+            if (gndNets.has(pNet)) circuitState.shortCircuit = true;
+        }
+
+        if (powerSources.length > 0) circuitState.hasPower = true;
+
+        if (circuitState.shortCircuit) {
+            playSizzleSound();
+            setBuzzerSound(false);
+            updateStatusUI();
+            return;
+        }
+
+        if (!circuitState.hasPower) {
+            setBuzzerSound(false);
+            updateStatusUI();
+            return;
+        }
+
+        let nodeV = {};
+        for (let [pNet, v] of vccNets) nodeV[pNet] = v;
+        for (let gNet of gndNets) nodeV[gNet] = 0.0;
+
+        for (let iter = 0; iter < 16; iter++) {
+            components.forEach(c => {
+                if (c.burnt || c.popped) return;
+
+                if (c.type === 'resistor') {
+                    let n1 = find(c.startHole.netId);
+                    let n2 = find(c.endHole.netId);
+                    let v1 = nodeV[n1], v2 = nodeV[n2];
+                    if (v1 !== undefined && v2 === undefined) nodeV[n2] = v1 * 0.98;
+                    if (v2 !== undefined && v1 === undefined) nodeV[n1] = v2 * 0.98;
+                } else if (c.type === 'diode') {
+                    let nAnode = find(c.startHole.netId);
+                    let nCathode = find(c.endHole.netId);
+                    let vA = nodeV[nAnode];
+                    if (vA !== undefined && vA > 0.7 && nodeV[nCathode] === undefined) {
+                        nodeV[nCathode] = vA - 0.7;
+                    }
+                } else if (c.type === 'capacitor') {
+                    let nPos = find(c.startHole.netId);
+                    let nNeg = find(c.endHole.netId);
+                    let vPos = nodeV[nPos] || 0;
+                    let vNeg = nodeV[nNeg] || 0;
+
+                    if (vNeg > vPos + 0.5) {
+                        c.heat = (c.heat || 0) + 30;
+                        if (c.heat >= 100 && !c.popped) {
+                            c.popped = true;
+                            playPopSound();
+                            let cx = (c.startHole.x + c.endHole.x) / 2;
+                            let cy = (c.startHole.y + c.endHole.y) / 2;
+                            createExplosionParticles(cx, cy, 'cap');
+                        }
+                    } else if (nodeV[nPos] !== undefined && nodeV[nNeg] === undefined) {
+                        nodeV[nNeg] = vPos * 0.9;
+                    }
+                } else if (c.type === 'photoresistor') {
+                    let n1 = find(c.startHole.netId);
+                    let n2 = find(c.endHole.netId);
+                    let v1 = nodeV[n1] || 0;
+                    let ratio = 0.1 + (1 - c.light) * 0.85;
+                    if (nodeV[n1] !== undefined && nodeV[n2] === undefined) nodeV[n2] = v1 * ratio;
+                } else if (c.type === 'potentiometer') {
+                    let n1 = find(c.pins[0].netId);
+                    let nW = find(c.pins[1].netId);
+                    let n2 = find(c.pins[2].netId);
+                    let v1 = nodeV[n1] || 0;
+                    let v2 = nodeV[n2] || 0;
+
+                    // Detect direct short if wiper is at 0 and connected across power
+                    if ((gndNets.has(nW) && [...vccNets.keys()].some(k => k === n1) && c.knob < 0.05) ||
+                        (gndNets.has(n1) && [...vccNets.keys()].some(k => k === nW) && c.knob < 0.05)) {
+                        circuitState.shortCircuit = true;
+                    }
+
+                    if (nodeV[n1] !== undefined && nodeV[nW] === undefined) nodeV[nW] = v1 * (1 - c.knob) + v2 * c.knob;
+                } else if (c.type === 'transistor_npn') {
+                    let nE = find(c.pins[0].netId);
+                    let nB = find(c.pins[1].netId);
+                    let nC = find(c.pins[2].netId);
+                    if ((nodeV[nB] || 0) - (nodeV[nE] || 0) > 0.5) {
+                        union(nC, nE);
+                    }
+                } else if (c.type === 'ic_555') {
+                    let gndPin = find(c.pins[0].netId); // Pin 1
+                    let trgPin = find(c.pins[1].netId); // Pin 2
+                    let outPin = find(c.pins[2].netId); // Pin 3
+                    let rstPin = find(c.pins[3].netId); // Pin 4
+                    let vccPin = find(c.pins[7].netId); // Pin 8
+
+                    let rstVoltage = nodeV[rstPin] || 0;
+
+                    // Pin 4 (RESET) must be HIGH (> 1.0V) for 555 output to oscillate
+                    if (gndNets.has(gndPin) && [...vccNets.keys()].some(k => k === vccPin) && rstVoltage > 1.0) {
+                        let clockHigh = (circuitState.oscillatorPhase < 50);
+                        nodeV[outPin] = clockHigh ? 4.8 : 0.0;
+                    } else {
+                        nodeV[outPin] = 0.0;
+                    }
+                }
+            });
+        }
+
+        circuitState.nodeVoltages = nodeV;
+
+        components.forEach(c => {
+            if (c.type === 'led' && !c.burnt) {
+                let anodeNet = find(c.startHole.netId);
+                let cathodeNet = find(c.endHole.netId);
+                let vA = nodeV[anodeNet] || 0;
+                let vK = nodeV[cathodeNet] || 0;
+                let vDiff = vA - vK;
+
+                if (vDiff > 1.8) {
+                    let seriesR = findSeriesResistance(c);
+                    let currentAmps = (vDiff - 1.8) / Math.max(seriesR, 1.0);
+
+                    if (currentAmps > 0.035) {
+                        c.heat = (c.heat || 0) + currentAmps * 160;
+                        let glowBrightness = Math.min(2.5, 1.0 + (c.heat / 100) * 1.5);
+                        circuitState.litLeds[c.id] = glowBrightness;
+
+                        if (c.heat >= 100) {
+                            c.burnt = true;
+                            playPopSound();
+                            let cx = (c.startHole.x + c.endHole.x) / 2;
+                            let cy = (c.startHole.y + c.endHole.y) / 2;
+                            createExplosionParticles(cx, cy, 'smoke');
+                        }
+                    } else {
+                        c.heat = 0;
+                        let brightness = Math.min(1.0, currentAmps / 0.02);
+                        circuitState.litLeds[c.id] = brightness;
+                    }
+                }
+            } else if (c.type === 'buzzer' && !c.burnt) {
+                let n1 = find(c.startHole.netId);
+                let n2 = find(c.endHole.netId);
+                let vDiff = Math.abs((nodeV[n1] || 0) - (nodeV[n2] || 0));
+                if (vDiff > 1.5) circuitState.buzzerActive = true;
+            }
+        });
+
+        // Dynamic audio pitch modulation for LDR pitch sensor
+        let ldrComp = components.find(comp => comp.type === 'photoresistor');
+        let soundFreq = ldrComp ? 300 + Math.round(ldrComp.light * 1200) : 880;
+
+        setBuzzerSound(circuitState.buzzerActive, soundFreq);
+        updateStatusUI();
+    }
+
+    function findSeriesResistance(ledComp) {
+        let totalR = 0;
+        components.forEach(c => {
+            if (c.type === 'resistor') totalR += c.value;
+        });
+        return totalR > 0 ? totalR : 2.0;
+    }
+
+    function updateStatusUI() {
+        const statusEl = document.getElementById('circuit-status');
+        const pInd = document.getElementById('power-indicator');
+        const sDot = document.getElementById('status-dot');
+        const mmReadout = document.getElementById('multimeter-readout');
+        const mmVal = document.getElementById('mm-value');
+
+        let burntComps = components.filter(c => c.burnt || c.popped);
+
+        if (!circuitState.powerSwitchOn) {
+            pInd.innerText = 'POWER OFF';
+            pInd.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400';
+            sDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+            statusEl.innerHTML = `<span class="text-amber-300 font-semibold">⚡ Click 'POWER ON / START' above to run test.</span>`;
+        } else if (circuitState.shortCircuit) {
+            pInd.innerText = 'SHORT CIRCUIT';
+            pInd.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-950 text-red-400 border border-red-700 animate-pulse';
+            sDot.className = 'w-2 h-2 rounded-full bg-red-500 animate-ping';
+            statusEl.innerHTML = `<span class="text-red-400 font-bold">⚠️ SHORT CIRCUIT DETECTED! Direct VCC to GND path.</span>`;
+        } else if (burntComps.length > 0) {
+            pInd.innerText = 'DAMAGE';
+            pInd.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-700';
+            sDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+            statusEl.innerHTML = `<span class="text-amber-400 font-bold">💥 ${burntComps.length} component(s) burned out! Click Repair.</span>`;
+        } else if (!circuitState.hasPower) {
+            pInd.innerText = 'NO POWER';
+            pInd.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400';
+            sDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+            statusEl.innerHTML = `<span class="text-slate-400">Place a DC Power Source (9V / 5V) to power circuit.</span>`;
+        } else {
+            pInd.innerText = 'ACTIVE';
+            pInd.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700';
+            sDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+            let litCount = Object.keys(circuitState.litLeds).length;
+            statusEl.innerHTML = `<span class="text-emerald-400 font-semibold">Circuit operational. ${litCount} active output(s).</span>`;
+        }
+
+        if (mmProbeRed || mmProbeBlack) {
+            mmReadout.classList.remove('hidden');
+            let vRed = mmProbeRed ? (circuitState.nodeVoltages[mmProbeRed.netId] || 0) : 0;
+            let vBlack = mmProbeBlack ? (circuitState.nodeVoltages[mmProbeBlack.netId] || 0) : 0;
+            let vDiff = vRed - vBlack;
+            mmVal.innerText = `${vDiff.toFixed(2)} V`;
+        } else {
+            mmReadout.classList.add('hidden');
+        }
+    }
+
+    // --- Hyperrealistic Canvas Rendering ---
+    function renderCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBreadboardBase();
+        drawHoles();
+
+        // Render Placement Selection Line
+        if (selectedHole) {
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(selectedHole.x, selectedHole.y);
+            ctx.lineTo(mousePos.x, mousePos.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Render Components
+        components.forEach(c => {
+            if (c.type === 'wire') {
+                drawWire(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.color);
+            } else if (c.type === 'resistor') {
+                drawResistor(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.value);
+            } else if (c.type === 'led') {
+                let brightness = circuitState.litLeds[c.id] || 0;
+                drawLED(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.color, brightness);
+            } else if (c.type === 'capacitor') {
+                drawCapacitor(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.popped);
+            } else if (c.type === 'diode') {
+                drawDiode(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y);
+            } else if (c.type === 'photoresistor') {
+                drawLDR(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y);
+            } else if (c.type === 'potentiometer') {
+                drawPotentiometer(c.pins, c.knob);
+            } else if (c.type === 'transistor_npn') {
+                drawTransistor(c.pins);
+            } else if (c.type === 'ic_555') {
+                drawIC555(c.pins);
+            } else if (c.type === 'pushbutton') {
+                drawPushbutton(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.pressed);
+            } else if (c.type === 'power') {
+                drawPowerSource(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, c.voltage);
+            } else if (c.type === 'buzzer') {
+                drawBuzzer(c.startHole.x, c.startHole.y, c.endHole.x, c.endHole.y, circuitState.buzzerActive);
+            }
+        });
+
+        // Render Multimeter Probes & Active Explosion Particles
+        if (mmProbeRed) drawProbe(mmProbeRed.x, mmProbeRed.y, '#ef4444');
+        if (mmProbeBlack) drawProbe(mmProbeBlack.x, mmProbeBlack.y, '#0f172a');
+        
+        updateAndDrawParticles();
+    }
+
+    function drawBreadboardBase() {
+        let x = 110, y = 50;
+        let w = 760;
+        let h = 440;
+
+        // Shadow & Body Outer Border
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 14);
+        ctx.fill();
+
+        // Inner Matte Surface Texture
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.roundRect(x + 6, y + 6, w - 12, h - 12, 10);
+        ctx.fill();
+
+        // Central Divider Notch Channel (DIP DIP Socket Groove)
+        ctx.fillStyle = '#cbd5e1';
+        let centerY = y + h / 2 - 9;
+        ctx.fillRect(x + 16, centerY, w - 32, 18);
+
+        // Power Rail Lines (Top & Bottom)
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.moveTo(x + 35, 94); ctx.lineTo(x + w - 35, 94);
+        ctx.moveTo(x + 35, 424); ctx.lineTo(x + w - 35, 424);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#3b82f6';
+        ctx.beginPath();
+        ctx.moveTo(x + 35, 116); ctx.lineTo(x + w - 35, 116);
+        ctx.moveTo(x + 35, 446); ctx.lineTo(x + w - 35, 446);
+        ctx.stroke();
+
+        // Silk Screen Markings (Power Rail + / - indicators)
+        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('+', x + 18, 98);
+        ctx.fillText('+', x + 18, 428);
+        ctx.fillText('+', x + w - 26, 98);
+        ctx.fillText('+', x + w - 26, 428);
+
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillText('-', x + 18, 120);
+        ctx.fillText('-', x + 18, 450);
+        ctx.fillText('-', x + w - 26, 120);
+        ctx.fillText('-', x + w - 26, 450);
+
+        // Row Letters (A..E and F..J)
+        ctx.font = '500 10px JetBrains Mono, monospace';
+        ctx.fillStyle = '#64748b';
+        const topLetters = ['A', 'B', 'C', 'D', 'E'];
+        topLetters.forEach((letStr, idx) => {
+            let ly = 160 + idx * 22 + 3;
+            ctx.fillText(letStr, x + 20, ly);
+            ctx.fillText(letStr, x + w - 26, ly);
+        });
+
+        const botLetters = ['F', 'G', 'H', 'I', 'J'];
+        botLetters.forEach((letStr, idx) => {
+            let ly = 292 + idx * 22 + 3;
+            ctx.fillText(letStr, x + 20, ly);
+            ctx.fillText(letStr, x + w - 26, ly);
+        });
+
+        // Column Numbers (1, 5, 10, 15, 20, 25, 30)
+        for (let col = 1; col <= 30; col += (col === 1 ? 4 : 5)) {
+            let cx = 170 + (col - 1) * 22;
+            ctx.fillText(col.toString(), cx - (col >= 10 ? 6 : 3), 146);
+            ctx.fillText(col.toString(), cx - (col >= 10 ? 6 : 3), 400);
+        }
+    }
+
+    function drawHoles() {
+        holes.forEach(h => {
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(h.x, h.y, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Metal Pin Contacts Ring
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            if (hoverHole && hoverHole.id === h.id) {
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(h.x, h.y, 7, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        });
+    }
+
+    function drawWire(x1, y1, x2, y2, color) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 3;
+
+        let wireColors = { 'red': '#ef4444', 'black': '#1e293b', 'blue': '#3b82f6', 'green': '#10b981' };
+        ctx.strokeStyle = wireColors[color] || '#ef4444';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+
+        let midX = (x1 + x2) / 2;
+        let midY = (y1 + y2) / 2 - 18;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(midX, midY, x2, y2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Helper to format ohm values into readable text labels (e.g. 1 kΩ, 10 kΩ)
+    function formatOhms(val) {
+        if (val >= 1000000) return (val / 1000000).toFixed(1).replace(/\.0$/, '') + ' MΩ';
+        if (val >= 1000) return (val / 1000).toFixed(1).replace(/\.0$/, '') + ' kΩ';
+        return val + ' Ω';
+    }
+
+    // Dynamic 4-band resistor color band calculator
+    function getResistorBands(value) {
+        const digitColors = ['#000000', '#78350f', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#64748b', '#ffffff'];
+        const multColors = {
+            0.1: '#d97706',
+            1: '#000000',
+            10: '#78350f',
+            100: '#ef4444',
+            1000: '#f97316',
+            10000: '#eab308',
+            100000: '#22c55e',
+            1000000: '#3b82f6'
+        };
+
+        let valStr = Number(value).toExponential();
+        let parts = valStr.split('e');
+        let mantissa = parseFloat(parts[0]);
+        let exponent = parseInt(parts[1], 10);
+
+        let sigFigs = Math.round(mantissa * 10);
+        if (sigFigs >= 100) {
+            sigFigs = 10;
+            exponent += 1;
+        }
+        exponent -= 1;
+
+        let d1 = Math.floor(sigFigs / 10);
+        let d2 = sigFigs % 10;
+        let multKey = Math.pow(10, exponent);
+
+        let c1 = digitColors[d1] || '#78350f';
+        let c2 = digitColors[d2] || '#000000';
+        let c3 = multColors[multKey] || '#f97316';
+        let c4 = '#d97706'; // Gold tolerance (5%)
+
+        return [c1, c2, c3, c4];
+    }
+
+    function drawResistor(x1, y1, x2, y2, val) {
+        // Lead Wires
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+        let angle = Math.atan2(y2 - y1, x2 - x1);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+
+        // Body
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(-14, -6, 28, 12);
+        ctx.strokeStyle = '#b45309';
+        ctx.strokeRect(-14, -6, 28, 12);
+
+        // Color Bands
+        let bands = getResistorBands(val);
+        bands.forEach((bColor, idx) => {
+            ctx.fillStyle = bColor;
+            ctx.fillRect(-10 + idx * 6, -6, 3, 12);
+        });
+
+        ctx.restore();
+    }
+
+    function drawLED(x1, y1, x2, y2, color, brightness) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+        const colorMap = { 'red': '#ef4444', 'green': '#22c55e', 'blue': '#3b82f6', 'yellow': '#eab308' };
+        let baseHex = colorMap[color] || '#ef4444';
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        let compObj = components.find(c => (c.startHole?.x === x1 && c.endHole?.x === x2));
+        if (compObj && compObj.burnt) {
+            ctx.fillStyle = '#1c1917';
+            ctx.beginPath(); ctx.arc(0, 0, 9.5, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#44403c'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
+        if (brightness > 0) {
+            let heatGlow = (compObj && compObj.heat) ? compObj.heat / 100 : 0;
+            ctx.shadowColor = heatGlow > 0.5 ? '#ffffff' : baseHex;
+            ctx.shadowBlur = (28 + heatGlow * 22) * brightness;
+            ctx.fillStyle = heatGlow > 0.5 ? '#ffffff' : baseHex;
+        } else {
+            ctx.fillStyle = 'rgba(100, 116, 139, 0.85)';
+        }
+
+        ctx.beginPath(); ctx.arc(0, 0, 9.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI*2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawCapacitor(x1, y1, x2, y2, popped) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        if (popped) {
+            ctx.fillStyle = '#78350f';
+            ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
+        ctx.fillStyle = '#0891b2';
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-10, -3, 5, 6); // Polarity Minus Stripe
+
+        ctx.restore();
+    }
+
+    function drawDiode(x1, y1, x2, y2) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+        let angle = Math.atan2(y2 - y1, x2 - x1);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(-12, -5, 24, 10);
+        ctx.fillStyle = '#cbd5e1'; // Cathode Silver Band
+        ctx.fillRect(6, -5, 4, 10);
+
+        ctx.restore();
+    }
+
+    function drawLDR(x1, y1, x2, y2) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#ca8a04';
+        ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-6, -4); ctx.lineTo(6, -2); ctx.lineTo(-6, 0); ctx.lineTo(6, 2); ctx.lineTo(-6, 4);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function drawPotentiometer(pins, knobVal = 0.5) {
+        if (!pins || pins.length < 3) return;
+        let cx = pins[1].x, cy = pins[1].y;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#0284c7';
+        ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+
+        // Indicator Arrow
+        let a = -Math.PI * 0.75 + knobVal * Math.PI * 1.5;
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a)*8, Math.sin(a)*8); ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function drawTransistor(pins) {
+        if (!pins || pins.length < 3) return;
+        let cx = pins[1].x, cy = pins[1].y;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath(); ctx.arc(0, 0, 11, Math.PI * 0.2, Math.PI * 1.8); ctx.fill();
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '8px monospace';
+        ctx.fillText('NPN', -8, 3);
+
+        ctx.restore();
+    }
+
+    function drawIC555(pins) {
+        if (!pins || pins.length < 8) return;
+        let minX = Math.min(...pins.map(p => p.x)) - 8;
+        let minY = Math.min(...pins.map(p => p.y)) - 6;
+
+        ctx.save();
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(minX, minY, 76, 32);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.strokeRect(minX, minY, 76, 32);
+
+        // Pin 1 Notch
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath(); ctx.arc(minX + 6, minY + 16, 3, 0, Math.PI * 2); ctx.fill();
+
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('NE555', minX + 22, minY + 19);
+
+        ctx.restore();
+    }
+
+    function drawPushbutton(x1, y1, x2, y2, pressed) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(-12, -12, 24, 24);
+        ctx.fillStyle = pressed ? '#22c55e' : '#ef4444';
+        ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawPowerSource(x1, y1, x2, y2, v) {
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(-18, -12, 36, 24);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.strokeRect(-18, -12, 36, 24);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 10px Inter, sans-serif';
+        ctx.fillText(`${v}V DC`, -14, 4);
+
+        ctx.restore();
+    }
+
+    function drawBuzzer(x1, y1, x2, y2, active) {
+        ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+        let cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        if (active) {
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 18;
+        }
+
+        ctx.fillStyle = '#334155';
+        ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawProbe(x, y, color) {
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function loadPreset(presetId) {
+        components = [];
+        mmProbeRed = null;
+        mmProbeBlack = null;
+        currentPresetId = presetId;
+        togglePowerSwitch(false);
+
+        let guide = presetGuides[presetId];
+        if (guide) {
+            document.getElementById('guide-title').innerText = guide.title;
+            document.getElementById('guide-content').innerHTML = guide.html;
+        }
+
+        if (presetId === 'preset-mistake-no-res') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'term_bot_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+        } else if (presetId === 'preset-mistake-low-res') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            components[components.length-1].value = 22;
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'term_bot_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+        } else if (presetId === 'preset-mistake-cap-reverse') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('capacitor', holes.find(h => h.id === 'top_neg_5'), holes.find(h => h.id === 'top_pos_5'));
+        } else if (presetId === 'preset-mistake-short') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_6'), holes.find(h => h.id === 'top_neg_6'));
+        } else if (presetId === 'preset-mistake-diode-reverse') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('diode', holes.find(h => h.id === 'term_top_9_0'), holes.find(h => h.id === 'term_top_5_4'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_9_4'), holes.find(h => h.id === 'term_top_13_0'));
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_top_13_4'), holes.find(h => h.id === 'top_neg_13'));
+        } else if (presetId === 'preset-mistake-floating-transistor') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            place3PinComp('transistor_npn', holes.find(h => h.id === 'term_top_11_2'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('buzzer', holes.find(h => h.id === 'top_pos_12'), holes.find(h => h.id === 'term_top_12_0'));
+        } else if (presetId === 'preset-mistake-led-reverse') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_bot_10_0'), holes.find(h => h.id === 'term_top_10_4'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+        } else if (presetId === 'preset-mistake-floating-reset') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            placeIC555(holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_top_10_0'), holes.find(h => h.id === 'top_pos_10'));
+            // Pin 4 (col 13 bot) left floating!
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_bot_12_4'), holes.find(h => h.id === 'term_bot_16_0'));
+            add2PinComponent('led_blue', holes.find(h => h.id === 'term_bot_16_4'), holes.find(h => h.id === 'top_neg_16'));
+        } else if (presetId === 'preset-mistake-parallel-led') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('led_blue', holes.find(h => h.id === 'term_top_10_3'), holes.find(h => h.id === 'top_neg_10'));
+        } else if (presetId === 'preset-mistake-pot-short') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            place3PinComp('potentiometer', holes.find(h => h.id === 'term_top_10_2'));
+            let pot = components[components.length - 1];
+            pot.knob = 0.0; // Set wiper to 0 ohms short!
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_9'), holes.find(h => h.id === 'term_top_9_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+        } else if (presetId === 'preset-divider') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'term_bot_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            // Pre-place multimeter probes to measure output voltage at node
+            mmProbeRed = holes.find(h => h.id === 'term_top_10_2');
+            mmProbeBlack = holes.find(h => h.id === 'top_neg_10');
+        } else if (presetId === 'preset-pot') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_8'), holes.find(h => h.id === 'term_top_8_0'));
+            place3PinComp('potentiometer', holes.find(h => h.id === 'term_top_9_2'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_9_4'), holes.find(h => h.id === 'term_top_13_0'));
+            components[components.length - 1].value = 220;
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_top_13_4'), holes.find(h => h.id === 'top_neg_13'));
+        } else if (presetId === 'preset-transistor') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_8_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_8_4'), holes.find(h => h.id === 'term_top_11_0'));
+            components[components.length - 1].value = 10000;
+            place3PinComp('transistor_npn', holes.find(h => h.id === 'term_top_11_2'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('buzzer', holes.find(h => h.id === 'top_pos_12'), holes.find(h => h.id === 'term_top_12_0'));
+        } else if (presetId === 'preset-dark-alarm') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('photoresistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_11_0'));
+            components[components.length - 1].light = 0.1; // Dark setting -> turns alarm ON!
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_11_4'), holes.find(h => h.id === 'top_neg_11'));
+            components[components.length - 1].value = 10000;
+            place3PinComp('transistor_npn', holes.find(h => h.id === 'term_top_11_2'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('buzzer', holes.find(h => h.id === 'top_pos_12'), holes.find(h => h.id === 'term_top_12_0'));
+        } else if (presetId === 'preset-555') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            placeIC555(holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_top_10_0'), holes.find(h => h.id === 'top_pos_10'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_bot_13_4'), holes.find(h => h.id === 'top_pos_13')); // Pin 4 Reset pulled HIGH
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_bot_12_4'), holes.find(h => h.id === 'term_bot_16_0'));
+            add2PinComponent('led_blue', holes.find(h => h.id === 'term_bot_16_4'), holes.find(h => h.id === 'top_neg_16'));
+        } else if (presetId === 'preset-rc') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_9_0'));
+            add2PinComponent('capacitor', holes.find(h => h.id === 'term_top_9_4'), holes.find(h => h.id === 'top_neg_9'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_9_3'), holes.find(h => h.id === 'term_top_13_0'));
+            add2PinComponent('led_yellow', holes.find(h => h.id === 'term_top_13_4'), holes.find(h => h.id === 'top_neg_13'));
+        } else if (presetId === 'preset-diode') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('diode', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_9_0')); // Forward bias
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_9_4'), holes.find(h => h.id === 'term_top_13_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_13_4'), holes.find(h => h.id === 'top_neg_13'));
+        } else if (presetId === 'preset-and') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_8_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_8_4'), holes.find(h => h.id === 'term_top_11_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_11_4'), holes.find(h => h.id === 'term_top_14_0'));
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_top_14_4'), holes.find(h => h.id === 'top_neg_14'));
+        } else if (presetId === 'preset-or') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_8_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_3'), holes.find(h => h.id === 'term_top_8_3')); // Parallel switch
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_8_4'), holes.find(h => h.id === 'term_top_12_0'));
+            add2PinComponent('led_blue', holes.find(h => h.id === 'term_top_12_4'), holes.find(h => h.id === 'top_neg_12'));
+        } else if (presetId === 'preset-series-leds') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_9_0'));
+            components[components.length-1].value = 330;
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_9_4'), holes.find(h => h.id === 'term_top_13_0'));
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_top_13_4'), holes.find(h => h.id === 'term_top_17_0'));
+            add2PinComponent('led_yellow', holes.find(h => h.id === 'term_top_17_4'), holes.find(h => h.id === 'top_neg_17'));
+        } else if (presetId === 'preset-parallel-leds') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_bot_5_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_bot_5_4'), holes.find(h => h.id === 'bot_neg_5'));
+            
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_10'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'term_bot_10_0'));
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'bot_neg_10'));
+        } else if (presetId === 'preset-ldr-pitch') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('photoresistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_11_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_11_4'), holes.find(h => h.id === 'top_neg_11'));
+            components[components.length - 1].value = 10000;
+            place3PinComp('transistor_npn', holes.find(h => h.id === 'term_top_11_2'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('buzzer', holes.find(h => h.id === 'top_pos_12'), holes.find(h => h.id === 'term_top_12_0'));
+        } else if (presetId === 'preset-monostable-555') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            placeIC555(holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_top_10_0'), holes.find(h => h.id === 'top_pos_10'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'term_bot_13_4'), holes.find(h => h.id === 'top_pos_13'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_bot_12_4'), holes.find(h => h.id === 'term_bot_16_0'));
+            add2PinComponent('led_green', holes.find(h => h.id === 'term_bot_16_4'), holes.find(h => h.id === 'top_neg_16'));
+        } else if (presetId === 'preset-not-gate') {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('pushbutton', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_8_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_8_4'), holes.find(h => h.id === 'term_top_11_0'));
+            components[components.length-1].value = 10000;
+            place3PinComp('transistor_npn', holes.find(h => h.id === 'term_top_11_2'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'top_neg_10'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'top_pos_12'), holes.find(h => h.id === 'term_top_12_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_12_4'), holes.find(h => h.id === 'top_neg_12'));
+        } else {
+            add2PinComponent('battery_9v', holes.find(h => h.id === 'top_pos_2'), holes.find(h => h.id === 'top_neg_2'));
+            add2PinComponent('wire_red', holes.find(h => h.id === 'top_pos_5'), holes.find(h => h.id === 'term_top_5_0'));
+            add2PinComponent('resistor', holes.find(h => h.id === 'term_top_5_4'), holes.find(h => h.id === 'term_top_10_0'));
+            add2PinComponent('led_red', holes.find(h => h.id === 'term_top_10_4'), holes.find(h => h.id === 'term_bot_10_0'));
+            add2PinComponent('wire_black', holes.find(h => h.id === 'term_bot_10_4'), holes.find(h => h.id === 'top_neg_10'));
+        }
+
+        evaluateCircuit();
+    }
+
+    // Start App
+    window.onload = init;
+</script>
+</body>
+</html>
